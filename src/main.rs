@@ -339,6 +339,35 @@ fn cal_recursive(tokens: &mut Vec<Tokens>) -> Result<f64, Err> {
                 Err(Err::UndefinedVar)
             }
         }
+    } else if tokens.len() == 2
+        && let Tokens::Opt(o) = &tokens[0]
+        && let Tokens::Var(v) = &tokens[1]
+    {
+        if o.opt == Opt::Add {
+            if let Ok(n) = v.parse::<f64>() {
+                Ok(n)
+            } else {
+                let vars = VARS.lock().unwrap();
+                if let Some(&n) = vars.get(v) {
+                    Ok(n)
+                } else {
+                    Err(Err::UndefinedVar)
+                }
+            }
+        } else if o.opt == Opt::Sub {
+            if let Ok(n) = v.parse::<f64>() {
+                Ok(-n)
+            } else {
+                let vars = VARS.lock().unwrap();
+                if let Some(&n) = vars.get(v) {
+                    Ok(-n)
+                } else {
+                    Err(Err::UndefinedVar)
+                }
+            }
+        } else {
+            Err(Err::Cal)
+        }
     } else {
         Err(Err::WrongBrackets)
     }
