@@ -4,6 +4,39 @@ use std::io::{Write, stdin, stdout};
 use std::process::exit;
 use std::sync::Mutex;
 
+fn math(str: &str) -> Result<f64, Err> {
+    let mut tokens = parse(str)?;
+    cal_recursive(&mut tokens)
+}
+
+fn main() {
+    let mut line = String::new();
+
+    loop {
+        print!(">>> ");
+        let _ = stdout().flush();
+        let _ = stdin().read_line(&mut line);
+        let trim = line.trim_start().trim_end();
+        if trim == "exit" {
+            exit(0);
+        } else {
+            match math(trim) {
+                Ok(n) => println!("{n}"),
+                Err(e) => match e {
+                    Err::WrongChar => {
+                        eprintln!("input the right numbers, variables or operators!!!")
+                    }
+                    Err::WrongBrackets => eprintln!("mismatched brackets!!!"),
+                    Err::Cal => eprintln!("calculate wrong!!!"),
+                    Err::UndefinedVar => eprintln!("variable doesn't exist!!!"),
+                    _ => {}
+                },
+            }
+            line.clear();
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Err {
     WrongChar,
@@ -50,7 +83,7 @@ lazy_static! {
     static ref VARS: Mutex<HashMap<String, f64>> = Mutex::new(HashMap::new());
 }
 
-fn math(str: &str) -> Result<f64, Err> {
+fn parse(str: &str) -> Result<Vec<Tokens>, Err> {
     let trim = str.trim_start().trim_end();
 
     if trim.is_empty() {
@@ -106,7 +139,7 @@ fn math(str: &str) -> Result<f64, Err> {
         }
     }
 
-    cal_recursive(&mut tokens)
+    Ok(tokens)
 }
 
 fn pop_opts_and_brackets(from: &mut Vec<char>, to: &mut Vec<Tokens>) {
@@ -308,33 +341,5 @@ fn cal_recursive(tokens: &mut Vec<Tokens>) -> Result<f64, Err> {
         }
     } else {
         Err(Err::WrongBrackets)
-    }
-}
-
-fn main() {
-    let mut line = String::new();
-
-    loop {
-        print!(">>> ");
-        let _ = stdout().flush();
-        let _ = stdin().read_line(&mut line);
-        let trim = line.trim_start().trim_end();
-        if trim == "exit" {
-            exit(0);
-        } else {
-            match math(trim) {
-                Ok(n) => println!("{n}"),
-                Err(e) => match e {
-                    Err::WrongChar => {
-                        eprintln!("input the right numbers, variables or operators!!!")
-                    }
-                    Err::WrongBrackets => eprintln!("mismatched brackets!!!"),
-                    Err::Cal => eprintln!("calculate wrong!!!"),
-                    Err::UndefinedVar => eprintln!("variable doesn't exist!!!"),
-                    _ => {}
-                },
-            }
-            line.clear();
-        }
     }
 }
