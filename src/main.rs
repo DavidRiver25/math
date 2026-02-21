@@ -139,6 +139,8 @@ fn parse(str: &str) -> Result<Vec<Tokens>, Err> {
         }
     }
 
+    deal_with_polarity(&mut tokens);
+
     Ok(tokens)
 }
 
@@ -176,38 +178,46 @@ fn pop_opts_and_brackets(from: &mut Vec<char>, to: &mut Vec<Tokens>) {
     }
 }
 
+fn deal_with_polarity(tokens: &mut Vec<Tokens>) {
+    tokens.reverse();
+
+    let mut index_adds_subs = vec![];
+    for (i, t) in tokens.iter().enumerate() {
+        if let Tokens::Opt(o) = t
+            && (o.opt == Opt::Add || o.opt == Opt::Sub)
+        {
+            index_adds_subs.push(i);
+        }
+    }
+    index_adds_subs.reverse();
+
+    for i in index_adds_subs {
+        if let Some(t) = tokens.get(i + 1) {
+            if let Tokens::Bracket(b) = t
+                && *b == Bracket::Left
+            {
+                tokens.insert(i + 1, Tokens::Var("0".into()));
+            } else if let Tokens::Opt(_) = t {
+                tokens.insert(i + 1, Tokens::Var("0".into()));
+            }
+        } else {
+            tokens.insert(i + 1, Tokens::Var("0".into()));
+        }
+    }
+
+    tokens.reverse();
+}
+
 fn cal_recursive(tokens: &mut Vec<Tokens>) -> Result<f64, Err> {
     let mut var_left = "";
     let mut var_right = "";
     let mut opt = Opt::None;
     let mut flag_cal = false;
     let mut flag_remove_bracket = false;
-    let mut flag_polarity = false;
 
     let mut i = 0;
     let pos = loop {
-        if let Some(Tokens::Opt(_)) = tokens.get(i)
-            && let Some(Tokens::Opt(opt_1)) = tokens.get(i + 1)
-            && let Some(Tokens::Var(var_0)) = tokens.get(i + 2)
-            && (opt_1.opt == Opt::Add || opt_1.opt == Opt::Sub)
-        {
-            flag_polarity = true;
-            var_left = "0";
-            opt = opt_1.opt;
-            var_right = var_0;
-            break Some(i + 1);
-        } else if let Some(Tokens::Bracket(b)) = tokens.get(i)
-            && let Some(Tokens::Opt(opt_1)) = tokens.get(i + 1)
-            && let Some(Tokens::Var(var_0)) = tokens.get(i + 2)
-            && (opt_1.opt == Opt::Add || opt_1.opt == Opt::Sub)
-            && *b == Bracket::Left
-        {
-            flag_polarity = true;
-            var_left = "0";
-            opt = opt_1.opt;
-            var_right = var_0;
-            break Some(i + 1);
-        } else if let Some(Tokens::Var(var_0)) = tokens.get(i)
+        if let Some(Tokens::Var(var_0)) = tokens.get(i)
             && let Some(Tokens::Opt(opt_1)) = tokens.get(i + 1)
             && let Some(Tokens::Var(var_1)) = tokens.get(i + 2)
         {
@@ -295,9 +305,7 @@ fn cal_recursive(tokens: &mut Vec<Tokens>) -> Result<f64, Err> {
             return Err(Err::Cal);
         }
         tokens.remove(pos + 1);
-        if !flag_polarity {
-            tokens.remove(pos + 1);
-        }
+        tokens.remove(pos + 1);
     }
 
     #[allow(clippy::never_loop)]
@@ -323,10 +331,8 @@ fn cal_recursive(tokens: &mut Vec<Tokens>) -> Result<f64, Err> {
     }
 
     if flag_cal || flag_remove_bracket {
-        return cal_recursive(tokens);
-    }
-
-    if tokens.len() == 1
+        cal_recursive(tokens)
+    } else if tokens.len() == 1
         && let Tokens::Var(v) = &tokens[0]
     {
         if let Ok(n) = v.parse::<f64>() {
@@ -338,35 +344,6 @@ fn cal_recursive(tokens: &mut Vec<Tokens>) -> Result<f64, Err> {
             } else {
                 Err(Err::UndefinedVar)
             }
-        }
-    } else if tokens.len() == 2
-        && let Tokens::Opt(o) = &tokens[0]
-        && let Tokens::Var(v) = &tokens[1]
-    {
-        if o.opt == Opt::Add {
-            if let Ok(n) = v.parse::<f64>() {
-                Ok(n)
-            } else {
-                let vars = VARS.lock().unwrap();
-                if let Some(&n) = vars.get(v) {
-                    Ok(n)
-                } else {
-                    Err(Err::UndefinedVar)
-                }
-            }
-        } else if o.opt == Opt::Sub {
-            if let Ok(n) = v.parse::<f64>() {
-                Ok(-n)
-            } else {
-                let vars = VARS.lock().unwrap();
-                if let Some(&n) = vars.get(v) {
-                    Ok(-n)
-                } else {
-                    Err(Err::UndefinedVar)
-                }
-            }
-        } else {
-            Err(Err::Cal)
         }
     } else {
         Err(Err::WrongBrackets)
